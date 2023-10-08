@@ -1,1 +1,5 @@
-project/hungary-latest.osm
+hungary-latest.osm
+map.blend1
+map.pickle
+map.blend
+__pycache__

@@ -11,17 +11,14 @@ class Node:
     parent_type: str
     drawn: bool
     selected: bool
+    render_x: float
+    render_y: float
 
     def lat(self, lat, scale):
         return (self.lattitude - lat) * scale
     
     def lon(self, lon, scale):
         return (self.longitude - lon) * scale
-    
-    def is_in_boundary(self, min_lon, min_lat, max_lon, max_lat, lon, lat, scale):
-        lo = self.lon(lon, scale)
-        la = self.lat(lat, scale)
-        return lo > min_lon and lo < max_lon and la > min_lat and la < max_lat
 
 @dataclass
 class Way:
@@ -43,9 +40,6 @@ class Relation:
     parent_type: str
     selected: bool
     secondary_selected: bool
-
-    def is_in_boundary(self, min_lon, min_lat, max_lon, max_lat, lon, lat, scale):
-        return True
 
 @dataclass
 class Tag:
@@ -103,7 +97,7 @@ class Handler(xml.sax.handler.ContentHandler):
         match name:
             case "node":
                 self.current = "node"
-                self.current_node = Node(int(attrs.getValue('id')), [], (float(attrs.getValue('lat'))), (float(attrs.getValue('lon'))), None, None, False, False)
+                self.current_node = Node(int(attrs.getValue('id')), [], (float(attrs.getValue('lat'))), (float(attrs.getValue('lon'))), None, None, False, False, 0, 0)
                 self.nodes.append(self.current_node)
                 
             case "way":
@@ -172,11 +166,10 @@ class Handler(xml.sax.handler.ContentHandler):
             self.relations.append(relation)
             
         for rel in self.relations_first_round:
-            
-            for member in rel.members:
-                if member.type == 'relation':
+            for mem in rel.members:
+                if mem.type == 'relation':
                     relation = search(self.relations, rel.id)
-                    r = search(self.relations, member.ref)
+                    r = search(self.relations, mem.ref)
                     if r is not None:
                         member = Member(r, mem.type, mem.role)
                         relation.members.append(member)
