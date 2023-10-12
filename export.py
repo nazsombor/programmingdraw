@@ -19,11 +19,6 @@ def tag_value(tags, k, default=None):
 def has_parent_but_no_tag(way):
     return way.parent and len(way.tags) == 0
 
-def nodes_to_coords(nodes):
-    list = []
-    for node in nodes:
-        list.append((node.lattitude, node.longitude))
-
 def export(lat, lon, scale, nodes, ways, relations):
 
     data = []
@@ -32,10 +27,24 @@ def export(lat, lon, scale, nodes, ways, relations):
 
         if has_parent_but_no_tag(way): continue
 
+        x = 0
+        y = 0
+        path = []
+
+        for node in way.nds:
+            x += node.lat * scale
+            y += node.lon * scale
+
+        x /= len(way.nds)
+        y /= len(way.nds)
+
+        for node in way.nds:
+            path.append((node.lat * scale - x, node.lon * scale - y))
+
         if has_tag(way.tags, "building"):
             data.append({
                 "object_type": "building",
-                "outline": nodes_to_coords(way.nds),
+                "outline": path,
                 "holes": [],
                 "levels": int(tag_value(way.tags, "levels", 1))
             })
@@ -44,50 +53,66 @@ def export(lat, lon, scale, nodes, ways, relations):
             data.append({
                 "object_type": "highway",
                 "type": tag_value(way.tags, "highway"),
-                "path": nodes_to_coords(way.nds)
+                "path": path
             })
 
         elif has_tag(way.tags, "natural", "tree_group"):
             data.append({
                 "object_type": "tree_group",
-                "outline": nodes_to_coords(way.nds),
+                "outline": path,
                 "holes": []
             })
 
         elif has_tag(way.tags, "barrier", "fence"):
             data.append({
                 "object_type": "fence",
-                "path":  nodes_to_coords(way.nds)
+                "path":  path
             })
     
     for relation in relations:
-        outline = None
+        x = 0
+        y = 0
+        path = []
         holes = []
         agregated = []
-        for member in relation.members:
-            if member.type == "way":
-                if member.role == "outer":
-                    outline = nodes_to_coords(member.member.nds)
-                elif member.role == "inner":
-                    holes.append(nodes_to_coords(member.member.nds))
-                for node in member.member.nds:
-                    agregated.append((node.lattitude, node.longitude))
         
         if has_tag(relation.tags, "building"):
+            for member in relation.members:
+                if member.role == "outer":
+                    for node in member.member.nds:
+                        x += node.lat * scale
+                        y += node.lon * scale
+                    
+                    x /= len(member.member.nds)
+                    y /= len(member.member.nds)
+
+                    for node in member.member.nds:
+                        path.append((node.lat * scale - x, node.lon * scale - y))
+                
+                if member.role == "inner":
+                    hole = []
+                    holes.append(hole)
+                    for node in member.member.nds:
+                        hole.append((node.lat * scale - x, node.lon * scale - y))
+
             data.append({
                 "object_type": "building",
-                "outline": outline,
+                "outline": path,
                 "holes": holes,
                 "levels": int(tag_value(relation.tags, "levels", 1))
             })
 
         if has_tag(relation.tags, "water", "river"):
+            for member in relation.members:
+                for node in member.member.nds:
+                    agregated.append((node.lat * scale - x, node.lon * scale - y))
+
             data.append({
                 "object_type": "river",
                 "outline": agregated
             })
+            
     try:
-        
         os.remove("map.pickle")
     except:
         pass
