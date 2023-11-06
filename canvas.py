@@ -1,28 +1,28 @@
 from PySide6.QtGui import QPaintEvent, QPainter
 from PySide6.QtCore import Qt
-from PySide6.QtOpenGLWidgets import QOpenGLWidget
+from PySide6.QtWidgets import QWidget
 from threading import Thread
 
 
-class Canvas(QOpenGLWidget):
+class Canvas(QWidget):
 
     visible = False
+    scale = 5000 * 17
 
     def setEditorVisible(self, visible):
         self.visible = visible
 
-    def setData(self, nodes, ways, relations):
-        self.nodes = nodes
-        self.ways = ways
-        self.relations = relations
+    def setData(self, data):
+        self.nodes = data["nodes"]
+        self.ways = data["ways"]
+        self.relations = data["relations"]
     
-    def setCamera(self, longitude, lattitude, scale):
+    def setCamera(self, longitude, lattitude):
         self.longitude = longitude
         self.lattitude = lattitude
-        self.scale = scale
-        self.threaded_update_location(self.nodes, self.update_nodes_location, 1)
-        self.threaded_update_location(self.ways, self.update_ways_location, 1)
-        self.threaded_update_location(self.relations, self.update_relations_location, 1)
+        self.threaded_update_location(self.nodes, self.update_nodes_location, 9)
+        self.threaded_update_location(self.ways, self.update_ways_location, 9)
+        self.threaded_update_location(self.relations, self.update_relations_location, 9)
 
     def setRender(self, render_nodes, render_ways, render_relations):
         self.render_nodes = render_nodes
@@ -32,29 +32,34 @@ class Canvas(QOpenGLWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter()
         painter.begin(self)
-        painter.fillRect(event.rect(), Qt.GlobalColor.white)
         self.render_nodes(painter, self.nodes, self.visible)
-        self.render_relations(painter, self.relations, self.visible)
         self.render_ways(painter, self.ways, self.visible)
+        self.render_relations(painter, self.relations, self.visible)
         painter.end()
 
     def update_nodes_location(self, nodes, start, end):
         for node in nodes[start:end]:
-            node.render_x = node.lon(self.longitude, self.scale)
-            node.render_y = node.lat(self.lattitude, self.scale)
+            node.render_x = node.lon(self.longitude, self.scale) + self.rect().width() / 2
+            node.render_y = -node.lat(self.lattitude, self.scale) + self.rect().height() / 2
     
     def update_ways_location(self, ways, start, end):
         for way in ways[start:end]:
-            self.update_nodes_location(way.nds, 0, len(way.nds))
+            for node in way.nds:
+                node.render_x = node.lon(self.longitude, self.scale) + self.rect().width() / 2
+                node.render_y = -node.lat(self.lattitude, self.scale) + self.rect().height() / 2
     
     def update_relations_location(self, relations, start, end):
         for relation in relations[start:end]:
-            member_nodes = []
             for member in relation.members:
                 match member.type:
-                    case "node": member_nodes.append(member.member)
-                    case "way": self.update_nodes_location(member.member.nds, 0, len(member.member.nds))
-            self.update_nodes_location(member_nodes, 0, len(member_nodes))
+                    case "node":
+                        node = member.member
+                        node.render_x = node.lon(self.longitude, self.scale) + self.rect().width() / 2
+                        node.render_y = -node.lat(self.lattitude, self.scale) + self.rect().width() / 2
+                    case "way":
+                        for node in member.member.nds:
+                            node.render_x = node.lon(self.longitude, self.scale) + self.rect().width() / 2
+                            node.render_y = -node.lat(self.lattitude, self.scale) + self.rect().height() / 2
 
     def threaded_update_location(self, items, function, thread_num):
         length = len(items)
